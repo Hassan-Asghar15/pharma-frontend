@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 
 // --- Type Definitions for Dashboard Data ---
-interface User { _id: string; name: string; email: string; role: string; }
+interface User { _id: string; name:string; email: string; role: string; createdAt: string; }
 interface Order { _id: string; }
 interface Product { _id: string; }
 interface DashboardData {
@@ -32,15 +32,16 @@ const fetcher = async ([urls, token]: [string[], string | null]): Promise<Dashbo
   };
 };
 
-// --- Reusable Stat Card Component ---
+// --- Reusable Stat Card Component (Error Fixed) ---
 const StatCard = ({ title, value, icon }: { title: string, value: number, icon: React.ReactNode }) => (
   <Card>
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
-      {icon}
+      <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</CardTitle>
+      {/* ✅ FIX: The icon is decorative. Wrapping it is a type-safe way to hide it from screen readers. */}
+      <div aria-hidden="true">{icon}</div>
     </CardHeader>
     <CardContent>
-      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
     </CardContent>
   </Card>
 );
@@ -64,26 +65,37 @@ export default function AdminDashboardPage() {
   );
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-full"><Loader2 className="h-10 w-10 animate-spin" /></div>;
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="text-center text-red-500">Failed to load dashboard data. Please refresh.</div>;
+    return (
+      <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed border-red-300 bg-red-50 p-6 text-center text-red-600">
+        Failed to load dashboard data. Please check your connection and refresh.
+      </div>
+    );
   }
 
   if (!data) {
     return <div className="text-center text-gray-500">No data available.</div>;
   }
-
-  const recentUsers = data.users.slice(-5).reverse();
+  
+  // Sort users by creation date to be certain we get the newest ones
+  const recentUsers = data.users
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
-      {/* Top Row: Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Total Users" value={data.users.length} icon={<Users className="h-4 w-4 text-gray-500" />} />
-        <StatCard title="Total Orders" value={data.orders.length} icon={<ShoppingCart className="h-4 w-4 text-gray-500" />} />
-        <StatCard title="Total Products" value={data.products.length} icon={<Package className="h-4 w-4 text-gray-500" />} />
+      {/* Top Row: Quick Stats - This grid is already responsive */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Total Users" value={data.users.length} icon={<Users className="h-5 w-5 text-gray-500" />} />
+        <StatCard title="Total Orders" value={data.orders.length} icon={<ShoppingCart className="h-5 w-5 text-gray-500" />} />
+        <StatCard title="Total Products" value={data.products.length} icon={<Package className="h-5 w-5 text-gray-500" />} />
       </div>
 
       {/* Main Content: Recent Users */}
@@ -96,16 +108,27 @@ export default function AdminDashboardPage() {
           <div className="space-y-4">
             {recentUsers.length > 0 ? (
               recentUsers.map(user => (
-                <div key={user._id} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
-                  <div>
-                    <p className="font-medium text-sm text-gray-800">{user.name}</p>
-                    <p className="text-xs text-gray-500">{user.email}</p>
+                // This layout stacks on mobile and becomes a row on larger screens
+                <div 
+                  key={user._id} 
+                  className="flex flex-col items-start gap-2 rounded-lg p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
+                        <span className="font-semibold text-gray-600 dark:text-gray-300">{user.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div>
+                        <p className="font-medium text-sm text-gray-800 dark:text-gray-100">{user.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                    </div>
                   </div>
-                  <Badge variant="outline" className="capitalize">{user.role}</Badge>
+                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
+                    {user.role}
+                  </Badge>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-gray-500">No users found.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No recent users found.</p>
             )}
           </div>
         </CardContent>
